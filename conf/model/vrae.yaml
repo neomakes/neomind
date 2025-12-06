@@ -1,0 +1,35 @@
+# VRAE Model Configuration
+
+# 모델 이름
+name: vrae
+
+# 데이터 차원
+action_dim: 7        # 행동: sleep, workout, location, steps, calories, distance, active_minutes
+state_dim: 2         # 상태: heart_rate, mood
+context_dim: 1       # 컨텍스트: weather
+
+# 잠재 차원
+latent_action_dim: 16        # z_a: 행동 관련 잠재 변수
+latent_behavior_dim: 32      # z_b: 행동 패턴 변수
+latent_context_dim: 32       # z_c: 컨텍스트 관련 잠재 변수
+
+# 네트워크 아키텍처
+hidden_dim: 64        # GRU 인코더/디코더 숨겨진 크기
+num_layers: 2         # GRU 레이어 수
+dropout_rate: 0.1     # Dropout 비율
+
+# 거리 메트릭
+distance_type: "rmse" # 옵션: rmse, mae, mape, huber
+huber_delta: 1.0      # Huber loss의 delta 파라미터
+
+# 샘플링 파라미터
+k_a: 3                # z_a 샘플 개수 (초기 상태 다양성)
+k_b: 3                # z_b 샘플 개수 (행동 스타일)
+k_c: 3                # z_c 샘플 개수 (상태 천이 패턴)
+
+# 손실함수 가중치
+# L_Total = w_vae * L_VAE + w_action * L_action + w_transition * L_transition + w_rollout * L_rollout
+w_vae: 1.0            # VAE 손실 가중치 (데이터 재구성)
+w_action: 0.5         # 정책 손실 가중치 (행동 예측)
+w_transition: 0.5     # 천이 손실 가중치 (상태 변화 예측)
+w_rollout: 0.3        # 롤아웃 손실 가중치 (생성 궤적 품질)

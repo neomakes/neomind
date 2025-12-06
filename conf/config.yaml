@@ -1,0 +1,22 @@
+defaults:
+  - model: vrae
+  - training: default
+  - _self_
+
+# 데이터 설정
+data:
+  path: "data/fitness_tracker_data.npz"
+  normalize: true
+  val_split_ratio: 0.1
+
+# Weights & Biases 설정
+wandb:
+  project: "fitness-tracker-vrae"
+  name: "vrae-run-${now:%Y-%m-%d-%H-%M-%S}"
+
+# Hydra 설정
+hydra:
+  run:
+    dir: logs/runs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: logs/sweeps/${now:%Y-%m-%d}/${now:%H-%M-%S}

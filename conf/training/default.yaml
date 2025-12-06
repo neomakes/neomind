@@ -1,0 +1,30 @@
+# VRAE 학습 하이퍼파라미터
+
+# 옵티마이저 설정
+learning_rate: 0.001      # Adam 학습률
+
+# 학습률 스케줄러 (Exponential Decay)
+use_lr_scheduler: true    # 스케줄러 사용 여부
+lr_decay_rate: 0.98       # 에포크마다 감소시킬 학습률 비율
+
+batch_size: 32            # 배치 크기
+
+# 학습 에포크
+epochs: 100               # 전체 학습 에포크 수
+log_interval: 100         # 로그 출력 주기 (배치 단위)
+save_interval: 10         # 모델 체크포인트 저장 주기
+
+# KL Annealing
+kl_annealing_end: 20      # KL annealing 종료 에포크
+kl_start_weight: 0.0      # 초기 KL 가중치
+kl_end_weight: 1.0        # 최종 KL 가중치
+
+# 손실 함수 가중치
+# L_total = w_vae*L_vae + w_action*L_action + w_transition*L_transition + w_rollout*L_rollout
+w_vae: 1.0                # VAE 손실 가중치 (재구성 + KL)
+w_action: 0.5             # 정책 손실 가중치 (행동 예측)
+w_transition: 0.5         # 천이 손실 가중치 (상태 변화)
+w_rollout: 0.3            # 롤아웃 손실 가중치 (생성 궤적)
+
+# WANDB 설정
+use_wandb: false          # W&B 로깅 활성화 여부

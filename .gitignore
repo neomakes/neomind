@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environments
+venv/
+env/
+.venv/
+.env/
+
+# IDE / Editor specific
+.idea/
+.vscode/
+
+# Data files (대용량 데이터는 Git으로 관리하지 않는 것이 좋습니다)
+*.npz
+data/
+
+# W&B and other logs
+wandb/
+logs/
+*.log
