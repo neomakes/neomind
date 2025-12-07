@@ -10,8 +10,8 @@ context_dim: 1       # 컨텍스트: weather
 
 # 잠재 차원
 latent_state_dim: 16        # z_a: 초기 상태 변동성
-latent_policy_dim: 32      # z_b: 정책 스타일
-latent_transition_dim: 32       # z_c: 천이 스타일
+latent_policy_dim: 64      # z_b: 정책 스타일
+latent_transition_dim: 64       # z_c: 천이 스타일
 
 # 네트워크 아키텍처
 hidden_dim: 64        # GRU 인코더/디코더 숨겨진 크기

@@ -51,11 +51,11 @@ logger = logging.getLogger(__name__)
 def generate_experiment_name(cfg: DictConfig) -> str:
     """
     모델 구성에 기반한 실험명 생성
-    예: exp_latent16_32_32_hidden64_layers2
+    예: exp_latent16_64_64_hidden512
     """
     return (
-        f"exp_latent{cfg.model.latent_action_dim}_{cfg.model.latent_behavior_dim}_{cfg.model.latent_context_dim}"
-        f"_hidden{cfg.model.hidden_dim}_layers{cfg.model.num_layers}"
+        f"exp_latent{cfg.model.latent_state_dim}_{cfg.model.latent_policy_dim}_{cfg.model.latent_transition_dim}"
+        f"_hidden{cfg.model.hidden_dim}"
     )
 
 
@@ -446,9 +446,9 @@ def main(cfg: DictConfig):
         action_dim=cfg.model.action_dim,
         state_dim=cfg.model.state_dim,
         context_dim=cfg.model.context_dim,
-        latent_dim_a=cfg.model.latent_action_dim,
-        latent_dim_b=cfg.model.latent_behavior_dim,
-        latent_dim_c=cfg.model.latent_context_dim,
+        latent_dim_a=cfg.model.latent_state_dim,
+        latent_dim_b=cfg.model.latent_policy_dim,
+        latent_dim_c=cfg.model.latent_transition_dim,
         rnn_hidden_dim=cfg.model.hidden_dim,
         distance_type=cfg.model.distance_type,
         huber_delta=cfg.model.huber_delta,
@@ -472,7 +472,7 @@ def main(cfg: DictConfig):
     logger.info(f"  - Action dim: {cfg.model.action_dim}")
     logger.info(f"  - State dim: {cfg.model.state_dim}")
     logger.info(f"  - Context dim: {cfg.model.context_dim}")
-    logger.info(f"  - Latent dims: z_a={cfg.model.latent_action_dim}, z_b={cfg.model.latent_behavior_dim}, z_c={cfg.model.latent_context_dim}")
+    logger.info(f"  - Latent dims: z_a={cfg.model.latent_state_dim}, z_b={cfg.model.latent_policy_dim}, z_c={cfg.model.latent_transition_dim}")
     
     # ========================================================================
     # 3. 옵티마이저 설정
