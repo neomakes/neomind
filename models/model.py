@@ -912,14 +912,14 @@ class VRAE(nn.Module):
         
         B = mu_a.shape[0]
         
-        # 1. KL divergence (안정화된 계산) - 배치별
+        # 1. KL divergence (안정화된 계산 + 차원별 정규화) - 배치별
         # KL(N(μ,σ²) || N(0,1)) = 0.5 * sum(μ² + σ² - 2*log(σ) - 1)
         eps = 1e-8
-        # (B, latent_dim) -> (B,)
-        kl_a = 0.5 * mx.sum(mu_a ** 2 + sigma_a ** 2 - 2 * mx.log(sigma_a + eps) - 1, axis=-1)
-        kl_b = 0.5 * mx.sum(mu_b ** 2 + sigma_b ** 2 - 2 * mx.log(sigma_b + eps) - 1, axis=-1)
-        kl_c = 0.5 * mx.sum(mu_c ** 2 + sigma_c ** 2 - 2 * mx.log(sigma_c + eps) - 1, axis=-1)
-        kl_loss = kl_a + kl_b + kl_c  # (B,)
+        # (B, latent_dim) -> (B,) 후 latent_dim으로 정규화
+        kl_a = 0.5 * mx.mean(mu_a ** 2 + sigma_a ** 2 - 2 * mx.log(sigma_a + eps) - 1, axis=-1)
+        kl_b = 0.5 * mx.mean(mu_b ** 2 + sigma_b ** 2 - 2 * mx.log(sigma_b + eps) - 1, axis=-1)
+        kl_c = 0.5 * mx.mean(mu_c ** 2 + sigma_c ** 2 - 2 * mx.log(sigma_c + eps) - 1, axis=-1)
+        kl_loss = kl_a + kl_b + kl_c  # (B,) - 정규화된 합
         
         # 2. Reconstruction loss (마스킹 기반) - 배치별
         mask = (m < 0.5).astype(mx.float32)  # (B, T, 1)

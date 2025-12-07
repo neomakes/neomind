@@ -51,12 +51,20 @@ logger = logging.getLogger(__name__)
 def generate_experiment_name(cfg: DictConfig) -> str:
     """
     모델 구성에 기반한 실험명 생성
-    예: exp_latent16_64_64_hidden512
+    예: exp_z16_64_64_k3_3_3_h64_l2
+    
+    포함 정보:
+    - z: 잠재 차원 (latent_state_dim_latent_policy_dim_latent_transition_dim)
+    - k: 샘플 개수 (k_a_k_b_k_c)
+    - h: 은닉층 차원 (hidden_dim)
+    - l: 레이어 수 (num_layers)
     """
-    return (
-        f"exp_latent{cfg.model.latent_state_dim}_{cfg.model.latent_policy_dim}_{cfg.model.latent_transition_dim}"
-        f"_hidden{cfg.model.hidden_dim}"
-    )
+    z_dims = f"{cfg.model.latent_state_dim}_{cfg.model.latent_policy_dim}_{cfg.model.latent_transition_dim}"
+    k_samples = f"{cfg.model.k_a}_{cfg.model.k_b}_{cfg.model.k_c}"
+    hidden = cfg.model.hidden_dim
+    layers = cfg.model.num_layers
+    
+    return f"exp_z{z_dims}_k{k_samples}_h{hidden}_l{layers}"
 
 
 def setup_logging_dir(cfg: DictConfig, hydra_dir: Path, use_wandb: bool = False) -> Tuple[Path, Any]:
