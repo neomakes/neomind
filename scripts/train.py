@@ -626,10 +626,12 @@ def main(cfg: DictConfig):
     if cfg.training.use_wandb and wandb.run is not None:
         # W&B 사용 시, W&B 실행 디렉토리 내에 저장
         checkpoint_dir = Path(wandb.run.dir) / "checkpoints"
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Checkpoints will be saved to W&B directory: {checkpoint_dir}")
     else:
         # W&B 미사용 시, 설정 파일의 기본 경로 사용
         checkpoint_dir = Path(cfg.training.checkpoint_dir)
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
     
     # 조기 종료 초기화
     early_stopping_patience = getattr(cfg.training, 'early_stopping_patience', 5)
