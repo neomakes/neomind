@@ -13,6 +13,7 @@ batch_size: 32            # 배치 크기
 epochs: 100               # 전체 학습 에포크 수
 log_interval: 100         # 로그 출력 주기 (배치 단위)
 save_interval: 10         # 모델 체크포인트 저장 주기
+checkpoint_dir: ./checkpoints  # 체크포인트 저장 디렉토리
 
 # KL Annealing
 kl_annealing_end: 20      # KL annealing 종료 에포크

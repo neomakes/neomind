@@ -469,15 +469,15 @@ class VRAE(nn.Module):
         self.encoder = GRUEncoder(encoder_input_dim, rnn_hidden_dim)
         self.attention_pool = MaskedAttentionPool(rnn_hidden_dim * 2)
         
-        # 잠재변수 출력층
+        # 잠재변수 출력층 (log_var 방식 사용)
         self.fc_mu_a = nn.Linear(rnn_hidden_dim * 2, latent_dim_a)
-        self.fc_sigma_a = nn.Linear(rnn_hidden_dim * 2, latent_dim_a)
+        self.fc_logvar_a = nn.Linear(rnn_hidden_dim * 2, latent_dim_a)
         
         self.fc_mu_b = nn.Linear(rnn_hidden_dim * 2, latent_dim_b)
-        self.fc_sigma_b = nn.Linear(rnn_hidden_dim * 2, latent_dim_b)
+        self.fc_logvar_b = nn.Linear(rnn_hidden_dim * 2, latent_dim_b)
         
         self.fc_mu_c = nn.Linear(rnn_hidden_dim * 2, latent_dim_c)
-        self.fc_sigma_c = nn.Linear(rnn_hidden_dim * 2, latent_dim_c)
+        self.fc_logvar_c = nn.Linear(rnn_hidden_dim * 2, latent_dim_c)
         
         # 디코더
         decoder_input_dim = latent_dim_a + latent_dim_b + latent_dim_c + context_dim + 4
@@ -555,15 +555,21 @@ class VRAE(nn.Module):
         # 어텐션 풀링
         h_agg = self.attention_pool.forward(h, m)  # (B, rnn_hidden_dim * 2)
         
-        # 잠재변수 분포
+        # 잠재변수 분포 (log_var 방식으로 안정성 향상)
         mu_a = self.fc_mu_a(h_agg)  # (B, latent_dim_a)
-        sigma_a = mx.exp(self.fc_sigma_a(h_agg))  # (B, latent_dim_a)
+        logvar_a = self.fc_logvar_a(h_agg)  # (B, latent_dim_a)
+        logvar_a = mx.clip(logvar_a, a_min=-10.0, a_max=10.0)  # 범위 제한
+        sigma_a = mx.exp(0.5 * logvar_a)  # (B, latent_dim_a)
         
         mu_b = self.fc_mu_b(h_agg)  # (B, latent_dim_b)
-        sigma_b = mx.exp(self.fc_sigma_b(h_agg))  # (B, latent_dim_b)
+        logvar_b = self.fc_logvar_b(h_agg)  # (B, latent_dim_b)
+        logvar_b = mx.clip(logvar_b, a_min=-10.0, a_max=10.0)  # 범위 제한
+        sigma_b = mx.exp(0.5 * logvar_b)  # (B, latent_dim_b)
         
         mu_c = self.fc_mu_c(h_agg)  # (B, latent_dim_c)
-        sigma_c = mx.exp(self.fc_sigma_c(h_agg))  # (B, latent_dim_c)
+        logvar_c = self.fc_logvar_c(h_agg)  # (B, latent_dim_c)
+        logvar_c = mx.clip(logvar_c, a_min=-10.0, a_max=10.0)  # 범위 제한
+        sigma_c = mx.exp(0.5 * logvar_c)  # (B, latent_dim_c)
         
         return mu_a, sigma_a, mu_b, sigma_b, mu_c, sigma_c
     
@@ -868,21 +874,29 @@ class VRAE(nn.Module):
         Returns:
             (total_loss, metrics_dict)
         """
-        # 1. KL divergence (배치 전체에 대해 계산 후 평균)
-        kl_a = -0.5 * mx.sum(1 + mx.log(sigma_a ** 2 + 1e-8) - mu_a ** 2 - sigma_a ** 2, axis=-1)
-        kl_b = -0.5 * mx.sum(1 + mx.log(sigma_b ** 2 + 1e-8) - mu_b ** 2 - sigma_b ** 2, axis=-1)
-        kl_c = -0.5 * mx.sum(1 + mx.log(sigma_c ** 2 + 1e-8) - mu_c ** 2 - sigma_c ** 2, axis=-1)
+        # 1. KL divergence (안정화된 계산)
+        eps = 1e-8
+        kl_a = -0.5 * mx.sum(1 + 2 * mx.log(sigma_a + eps) - mu_a ** 2 - sigma_a ** 2, axis=-1)
+        kl_b = -0.5 * mx.sum(1 + 2 * mx.log(sigma_b + eps) - mu_b ** 2 - sigma_b ** 2, axis=-1)
+        kl_c = -0.5 * mx.sum(1 + 2 * mx.log(sigma_c + eps) - mu_c ** 2 - sigma_c ** 2, axis=-1)
         kl_loss = kl_a + kl_b + kl_c
         
         # 2. Reconstruction loss (마스킹 기반)
         mask = (m < 0.5).astype(mx.float32)
         recon_loss_a = DistanceMetric.compute(a_recon, a, self.distance_type, mask=mask, delta=self.huber_delta)
         recon_loss_s = DistanceMetric.compute(s_recon, s, self.distance_type, mask=mask, delta=self.huber_delta)
-        recon_loss = recon_loss_a + recon_loss_s # This is already a scalar mean over the batch
+        
+        # NaN 체크 및 안정화
+        recon_loss_a = mx.where(mx.isnan(recon_loss_a), mx.array(0.0), recon_loss_a)
+        recon_loss_s = mx.where(mx.isnan(recon_loss_s), mx.array(0.0), recon_loss_s)
+        recon_loss = recon_loss_a + recon_loss_s
         
         # 3. VAE 총 손실
         # vae_loss는 (B,) 형태이므로 평균을 취함
         vae_loss = mx.mean(recon_loss + kld_weight * kl_loss)
+        
+        # NaN 최종 체크
+        vae_loss = mx.where(mx.isnan(vae_loss), mx.array(0.0), vae_loss)
         
         # 메트릭
         metrics = {
