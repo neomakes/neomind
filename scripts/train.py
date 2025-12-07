@@ -49,6 +49,61 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# ============================================================================
+# Early Stopping 클래스
+# ============================================================================
+
+class EarlyStoppingTracker:
+    """
+    검증 손실 기반 조기 종료 모니터링
+    
+    Args:
+        patience: 개선이 없을 때 몇 epoch을 기다릴지
+        min_delta: 최소 개선 기준 (이보다 작은 개선은 무시)
+    """
+    def __init__(self, patience: int = 5, min_delta: float = 0.001):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.best_val_loss = float('inf')
+        self.wait_count = 0
+        self.best_epoch = 0
+        self.best_model_state = None
+    
+    def step(self, val_loss: float, epoch: int) -> Tuple[bool, bool]:
+        """
+        검증 손실을 기반으로 조기 종료 여부 결정
+        
+        Args:
+            val_loss: 현재 검증 손실
+            epoch: 현재 epoch
+        
+        Returns:
+            (should_stop, improved): 멈춰야 하는지, 개선되었는지
+        """
+        improvement = self.best_val_loss - val_loss
+        
+        if improvement > self.min_delta:
+            # 개선됨
+            self.best_val_loss = val_loss
+            self.best_epoch = epoch
+            self.wait_count = 0
+            return False, True
+        else:
+            # 개선 없음
+            self.wait_count += 1
+            if self.wait_count >= self.patience:
+                return True, False  # 멈춤
+            return False, False
+    
+    def get_info(self) -> str:
+        """현재 상태 정보 반환"""
+        return (
+            f"Best Epoch: {self.best_epoch}, "
+            f"Best Loss: {self.best_val_loss:.4f}, "
+            f"Wait Count: {self.wait_count}/{self.patience}"
+        )
+
+
 def generate_experiment_name(cfg: DictConfig) -> str:
     """
     모델 구성에 기반한 실험명 생성
@@ -546,6 +601,15 @@ def main(cfg: DictConfig):
         # W&B 미사용 시, 설정 파일의 기본 경로 사용
         checkpoint_dir = Path(cfg.training.checkpoint_dir)
     
+    # 조기 종료 초기화
+    early_stopping_patience = getattr(cfg.training, 'early_stopping_patience', 5)
+    early_stopping_min_delta = getattr(cfg.training, 'early_stopping_min_delta', 0.001)
+    early_stopper = EarlyStoppingTracker(
+        patience=early_stopping_patience,
+        min_delta=early_stopping_min_delta
+    )
+    logger.info(f"Early stopping configured: patience={early_stopping_patience}, min_delta={early_stopping_min_delta}")
+    
     for epoch in range(cfg.training.epochs):
         # 학습률 스케줄러 (매 에포크 시작 시 업데이트)
         if cfg.training.use_lr_scheduler:
@@ -727,6 +791,23 @@ def main(cfg: DictConfig):
             for k, v in avg_val_metrics.items():
                 epoch_log_data[f"val_epoch/{k}"] = v
             wandb_run.log(epoch_log_data)
+        
+        # 조기 종료 확인
+        val_total_loss = avg_val_metrics['total_loss']
+        should_stop, improved = early_stopper.step(val_total_loss, epoch)
+        
+        if improved:
+            logger.info(f"✅ Validation loss improved to {val_total_loss:.4f}")
+        else:
+            logger.info(
+                f"⚠️  No validation improvement | "
+                f"{early_stopper.get_info()}"
+            )
+        
+        if should_stop:
+            logger.info(f"\n🛑 Early stopping triggered at Epoch {epoch + 1}")
+            logger.info(f"   {early_stopper.get_info()}")
+            break
         
         # 체크포인트 저장 (매 save_interval 에포크마다)
         if (epoch + 1) % cfg.training.save_interval == 0:
