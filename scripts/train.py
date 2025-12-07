@@ -26,7 +26,7 @@ from typing import Tuple, Optional, Dict, Any
 import mlx.core as mx
 import mlx.nn as nn
 import mlx.optimizers as optim
-from mlx.utils import tree_flatten
+from mlx.utils import tree_flatten, tree_map
 
 # 모델 임포트
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -38,6 +38,7 @@ import wandb
 
 from tqdm import tqdm
 import logging
+from datetime import datetime
 
 # 로거 설정
 logging.basicConfig(
@@ -45,6 +46,57 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+def generate_experiment_name(cfg: DictConfig) -> str:
+    """
+    모델 구성에 기반한 실험명 생성
+    예: exp_latent16_32_32_hidden64_layers2
+    """
+    return (
+        f"exp_latent{cfg.model.latent_action_dim}_{cfg.model.latent_behavior_dim}_{cfg.model.latent_context_dim}"
+        f"_hidden{cfg.model.hidden_dim}_layers{cfg.model.num_layers}"
+    )
+
+
+def setup_logging_dir(cfg: DictConfig, hydra_dir: Path, use_wandb: bool = False) -> Tuple[Path, Any]:
+    """
+    로깅 디렉토리 설정 및 wandb 초기화
+    
+    Hydra의 기본 구조(logs/runs/날짜/시간/)를 유지하면서,
+    .hydra와 함께 .wandb 폴더도 생성하여 W&B 파일 관리
+    
+    Args:
+        cfg: Hydra 설정
+        hydra_dir: Hydra가 생성한 로그 디렉토리 (logs/runs/날짜/시간/)
+        use_wandb: W&B 사용 여부
+    
+    Returns:
+        (experiment_dir, wandb_run): 실험 디렉토리와 W&B 실행 객체
+    """
+    # .wandb 디렉토리 생성 (Hydra의 .hydra와 동일 위치)
+    wandb_dir = hydra_dir / ".wandb"
+    wandb_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 실험명 생성
+    exp_name = generate_experiment_name(cfg)
+    
+    if use_wandb:
+        # W&B 초기화 - .wandb 디렉토리 내에서 실행
+        wandb_run = wandb.init(
+            project=cfg.wandb.project,
+            name=exp_name,
+            config=OmegaConf.to_container(cfg, resolve=True),
+            dir=str(wandb_dir),
+        )
+        
+        logger.info(f"W&B run initialized: {wandb_run.name} (ID: {wandb_run.id})")
+        logger.info(f"W&B directory: {wandb_dir}")
+        
+        return hydra_dir, wandb_run
+    else:
+        logger.info(f"W&B disabled - logs will be saved to: {hydra_dir}")
+        return hydra_dir, None
 
 
 # ============================================================================
@@ -295,7 +347,20 @@ def train_step(
     loss_and_grad_fn = nn.value_and_grad(model, loss_fn)
     (loss, metrics), grads = loss_and_grad_fn(model)
     
-    # 2. 옵티마이저 업데이트
+    # NaN 체크 (Epoch 2+ 디버깅)
+    total_loss_value = metrics['total_loss']
+    if mx.isnan(total_loss_value):
+        logger.warning(f"⚠️  NaN loss detected! VAE: {metrics['vae_loss']:.4f}, Action: {metrics['action_loss']:.4f}, Transition: {metrics['transition_loss']:.4f}, Rollout: {metrics['rollout_loss']:.4f}")
+    
+    # 2. 그래디언트 클리핑 (기울기 폭발 방지)
+    def clip_gradient(g):
+        if hasattr(g, 'ndim') and g.ndim > 0:
+            return mx.clip(g, a_min=-1.0, a_max=1.0)
+        return g
+    
+    grads = tree_map(clip_gradient, grads)
+    
+    # 3. 옵티마이저 업데이트
     optimizer.update(model, grads)
     mx.eval(model.parameters(), optimizer.state)
     
@@ -313,9 +378,30 @@ def main(cfg: DictConfig):
     Args:
         cfg: Hydra 설정
     """
+    # ========================================================================
+    # 0. 로깅 설정
+    # ========================================================================
+    # HydraConfig에서 런타임 정보 얻기
+    from hydra.core.hydra_config import HydraConfig
+    hydra_cfg = HydraConfig.get()
+    
+    # Hydra의 출력 디렉토리 (logs/runs/날짜/시간/)
+    hydra_dir = Path(hydra_cfg.runtime.output_dir)
+    
+    # W&B 설정 및 .wandb 폴더 생성
+    experiment_dir, wandb_run = setup_logging_dir(cfg, hydra_dir, cfg.training.use_wandb)
+    
+    # 로그 파일을 실험 디렉토리에 저장
+    log_file = experiment_dir / "train.log"
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logger.addHandler(file_handler)
+    
     logger.info("=" * 80)
     logger.info("FitnessTracker VRAE Model Training")
     logger.info("=" * 80)
+    logger.info(f"Experiment: {generate_experiment_name(cfg)}")
     logger.info(f"\n{OmegaConf.to_yaml(cfg)}")
     
     # ========================================================================
@@ -399,18 +485,12 @@ def main(cfg: DictConfig):
     logger.info(f"Epochs: {cfg.training.epochs}")
     
     # ========================================================================
-    # 4. W&B 초기화 (선택사항)
+    # 4. 체크포인트 디렉토리 설정
     # ========================================================================
-    if cfg.training.use_wandb:
-        logger.info("\n[4/5] Initializing W&B...")
-        wandb.init(
-            project=cfg.wandb.project,
-            name=cfg.wandb.name,
-            config=OmegaConf.to_container(cfg, resolve=True),
-        )
-        logger.info(f"W&B run: {wandb.run.name}")
-    else:
-        logger.info("\n[4/5] W&B disabled")
+    logger.info("\n[4/5] Setting up checkpoint directory...")
+    checkpoint_dir = experiment_dir / "checkpoints"
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Checkpoints will be saved to: {checkpoint_dir}")
     
     # ========================================================================
     # 5. 학습 루프
@@ -490,20 +570,47 @@ def main(cfg: DictConfig):
             for k, v in metrics.items():
                 epoch_metrics[k] += v.item()
 
-            # W&B 로깅 (매 스텝)
-            if cfg.training.use_wandb and (batch_idx % cfg.training.log_interval == 0):
-                step_log_data = {"epoch": epoch + 1, "step": epoch * num_train_batches + batch_idx}
-                # wandb에 로그할 때, loss/ 접두사 추가
+            # 배치 상세 로깅 (첫 배치와 문제 발생 시)
+            if batch_idx == 0 or mx.isnan(metrics['total_loss']):
+                batch_log = (
+                    f"  Batch {batch_idx}: Total={metrics['total_loss'].item():.4f} | "
+                    f"VAE={metrics['vae_loss'].item():.4f} | "
+                    f"Action={metrics['action_loss'].item():.4f} | "
+                    f"Transition={metrics['transition_loss'].item():.4f} | "
+                    f"Rollout={metrics['rollout_loss'].item():.4f}"
+                )
+                logger.info(batch_log)
+
+            # 모든 배치마다 wandb 로깅 (use_wandb=True인 경우)
+            if wandb_run is not None:
+                step_log_data = {
+                    "epoch": epoch + 1,
+                    "batch": batch_idx,
+                    "global_step": epoch * num_train_batches + batch_idx,
+                    "kld_weight": kld_weight,
+                    "learning_rate": current_lr,
+                }
+                # 모든 손실 메트릭 로깅
                 for k, v in metrics.items():
-                    step_log_data[f"batch_loss/{k}"] = v.item()
-                wandb.log(step_log_data)
+                    step_log_data[f"train/{k}"] = v.item()
+                wandb_run.log(step_log_data)
 
             pbar.set_postfix({"loss": f"{metrics['total_loss'].item():.4f}", "kld_w": f"{kld_weight:.3f}", "lr": f"{current_lr:.6f}"})
         
         # 에포크 평균 메트릭 계산 및 로깅
         avg_train_metrics = {k: v / num_train_batches for k, v in epoch_metrics.items()}
         
-        log_str = f"Epoch {epoch+1} [Train] - Total Loss: {avg_train_metrics['total_loss']:.4f} | VAE: {avg_train_metrics['vae_loss']:.4f}"
+        log_str = (
+            f"Epoch {epoch+1} [Train] - "
+            f"Total Loss: {avg_train_metrics['total_loss']:.4f} | "
+            f"VAE: {avg_train_metrics['vae_loss']:.4f} | "
+            f"Recon_A: {avg_train_metrics['recon_loss_action']:.4f} | "
+            f"Recon_S: {avg_train_metrics['recon_loss_state']:.4f} | "
+            f"KL: {avg_train_metrics['kl_loss']:.4f} | "
+            f"Action: {avg_train_metrics['action_loss']:.4f} | "
+            f"Transition: {avg_train_metrics['transition_loss']:.4f} | "
+            f"Rollout: {avg_train_metrics['rollout_loss']:.4f}"
+        )
         logger.info(log_str)
         
         # --- 검증 루프 ---
@@ -532,45 +639,50 @@ def main(cfg: DictConfig):
             pbar_val.set_postfix({"val_loss": f"{metrics['total_loss'].item():.4f}"})
 
         avg_val_metrics = {k: v / num_val_batches for k, v in val_metrics.items()}
-        log_str_val = f"Epoch {epoch+1} [Val]   - Total Loss: {avg_val_metrics['total_loss']:.4f} | VAE: {avg_val_metrics['vae_loss']:.4f}"
+        log_str_val = (
+            f"Epoch {epoch+1} [Val]   - "
+            f"Total Loss: {avg_val_metrics['total_loss']:.4f} | "
+            f"VAE: {avg_val_metrics['vae_loss']:.4f} | "
+            f"Recon_A: {avg_val_metrics['recon_loss_action']:.4f} | "
+            f"Recon_S: {avg_val_metrics['recon_loss_state']:.4f} | "
+            f"KL: {avg_val_metrics['kl_loss']:.4f} | "
+            f"Action: {avg_val_metrics['action_loss']:.4f} | "
+            f"Transition: {avg_val_metrics['transition_loss']:.4f} | "
+            f"Rollout: {avg_val_metrics['rollout_loss']:.4f}"
+        )
         logger.info(log_str_val)
-
-        # W&B 에포크 로깅
-        if cfg.training.use_wandb:
-            log_data = {"epoch": epoch + 1, "kld_weight": kld_weight, "learning_rate": current_lr}
-            
-            # 훈련 손실 로그
-            for k, v in avg_train_metrics.items():
-                log_data[f"epoch_loss/{k}"] = v
-            
-            # 검증 손실 로그
-            for k, v in avg_val_metrics.items():
-                log_data[f"val_loss/{k}"] = v
-            
-            wandb.log(log_data)
         
-        # 모델 체크포인팅
+        # W&B 에포크별 요약 로깅
+        if wandb_run is not None:
+            epoch_log_data = {"epoch": epoch + 1}
+            # Train 메트릭
+            for k, v in avg_train_metrics.items():
+                epoch_log_data[f"train_epoch/{k}"] = v
+            # Val 메트릭
+            for k, v in avg_val_metrics.items():
+                epoch_log_data[f"val_epoch/{k}"] = v
+            wandb_run.log(epoch_log_data)
+        
+        # 체크포인트 저장 (매 save_interval 에포크마다)
         if (epoch + 1) % cfg.training.save_interval == 0:
-            checkpoint_dir.mkdir(parents=True, exist_ok=True)
-            
-            checkpoint_path = checkpoint_dir / f"model_epoch_{epoch+1}.safetensors"
-            
-            # MLX 모델 저장 (weight dictionary)
-            weights = dict(tree_flatten(model.parameters()))
-            
-            try:
-                import safetensors.mlx
-                safetensors.mlx.save_file(weights, str(checkpoint_path))
-                logger.info(f"Saved checkpoint to {checkpoint_path}")
-            except ImportError:
-                logger.warning("safetensors not available, skipping checkpoint save")
+            checkpoint_path = checkpoint_dir / f"model_epoch{epoch+1:03d}.npz"
+            # MLX 모델 저장 (간단한 방식)
+            import pickle
+            with open(checkpoint_path, 'wb') as f:
+                pickle.dump(mx.tree_flatten(model.parameters()), f)
+            logger.info(f"Checkpoint saved to {checkpoint_path}")
     
+    # 학습 완료 로그
     logger.info("\n" + "=" * 80)
     logger.info("Training completed!")
     logger.info("=" * 80)
     
-    if cfg.training.use_wandb:
-        wandb.finish()
+    if wandb_run is not None:
+        logger.info(f"W&B Run: {wandb_run.get_url()}")
+        wandb_run.finish()
+    
+    logger.info(f"Logs saved to: {experiment_dir / 'train.log'}")
+    logger.info(f"Checkpoints saved to: {checkpoint_dir}")
 
 
 if __name__ == "__main__":

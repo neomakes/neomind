@@ -8,11 +8,14 @@ vrae.py: Variational Recurrent Autoencoder for Fitness Tracker Data
 
 구조:
   VAE Encoder → z_a, z_b, z_c (3개 잠재변수)
+    z_a: 초기 상태 변동성
+    z_b: 정책 스타일
+    z_c: 천이 스타일
   ↓ (샘플링)
   VAE Decoder → 행동/상태 재구성
   ↓
-  Policy Network → 행동 예측 (z_b 조건)
-  Transition Network → 다음 상태 예측 (z_c 조건)
+  Policy Network → 행동 예측 (z_b 조건: 정책 스타일)
+  Transition Network → 다음 상태 예측 (z_c 조건: 천이 스타일)
 """
 
 import mlx.core as mx
@@ -212,7 +215,7 @@ class PolicyNetwork(nn.Module):
     """
     정책 네트워크: π(a_t | s_t, w_t; z_b)
     
-    입력: 상태(s), 컨텍스트(w), 잠재변수(z_b)
+    입력: 상태(s), 컨텍스트(w), 잠재변수(z_b: 정책 스타일)
     출력: 행동(a) 예측
     """
     
@@ -288,7 +291,7 @@ class TransitionNetwork(nn.Module):
     """
     천이 네트워크: τ(s_{t+1} | s_t, a_t, w_t; z_c)
     
-    입력: 상태(s), 행동(a), 컨텍스트(w), 잠재변수(z_c)
+    입력: 상태(s), 행동(a), 컨텍스트(w), 잠재변수(z_c: 천이 스타일)
     출력: 다음 상태(s_{t+1}) 예측
     """
     
@@ -338,7 +341,7 @@ class TransitionNetwork(nn.Module):
             s: (batch, state_dim) 또는 (state_dim,) [현재 상태]
             a: (batch, action_dim) 또는 (action_dim,) [현재 행동]
             w: (batch, context_dim) 또는 (context_dim,) [컨텍스트]
-            z_c: (batch, latent_dim_c) 또는 (latent_dim_c,) [천이 패턴]
+            z_c: (batch, latent_dim_c) 또는 (latent_dim_c,) [천이 스타일]
         
         Returns:
             s_next: (batch, state_dim) 또는 (state_dim,) [다음 상태]
@@ -705,8 +708,13 @@ class VRAE(nn.Module):
         z_c_flat = mx.tile(z_c, (self.k_a * self.k_b, 1))
         
         # 초기 상태 s0를 z_a의 영향을 받아 확장
+        # z_a_flat: (num_trajectories, latent_dim_a)
+        # s0: (state_dim,) -> (num_trajectories, state_dim)
         s0_expanded = mx.broadcast_to(s0, (num_trajectories, self.state_dim))
-        s_initial = s0_expanded + mx.mean(z_a_flat, axis=-1, keepdims=True) * 0.1
+        
+        # z_a_flat의 첫 번째 스칼라 값만 사용 (또는 평균)
+        z_a_scale = mx.mean(z_a_flat, axis=-1, keepdims=True)  # (num_trajectories, 1)
+        s_initial = s0_expanded + z_a_scale * 0.1  # (num_trajectories, state_dim)
 
         # for 루프를 사용하여 롤아웃 실행
         s_t = s_initial
@@ -822,18 +830,27 @@ class VRAE(nn.Module):
         125개 생성 궤적과 실제 궤적의 거리
         마스킹 기반으로 유효한 시점만 손실 계산
         """
-        # 롤아웃: 125개 궤적 생성
-        trajectories = self.rollout(s0, w, z_a, z_b, z_c)  # (125, T, action_dim)
-        
-        # a_true: (B, T, D) -> (B, 1, T, D), trajectories: (B, N, T, D)
-        a_true_expanded = mx.expand_dims(a_true, 1)
-        # mask: (B, T, 1) -> (B, 1, T, 1)
-        mask_float = mx.expand_dims((m < 0.5).astype(mx.float32), 1)
-        
-        # DistanceMetric.compute가 y_pred와 y_true의 브로드캐스팅 후 형태를 기준으로 마스크를 처리하므로,
-        # 마스크의 마지막 차원을 action_dim과 동일하게 확장해줍니다.
-        mask_expanded = mx.broadcast_to(mask_float, trajectories.shape)
-        return DistanceMetric.compute(trajectories, a_true_expanded, distance_type, mask=mask_expanded, delta=huber_delta)
+        try:
+            # 롤아웃: 125개 궤적 생성
+            trajectories = self.rollout(s0, w, z_a, z_b, z_c)  # (125, T, action_dim)
+            
+            # a_true: (B, T, D) -> (B, 1, T, D), trajectories: (B, N, T, D)
+            a_true_expanded = mx.expand_dims(a_true, 1)
+            # mask: (B, T, 1) -> (B, 1, T, 1)
+            mask_float = mx.expand_dims((m < 0.5).astype(mx.float32), 1)
+            
+            # DistanceMetric.compute가 y_pred와 y_true의 브로드캐스팅 후 형태를 기준으로 마스크를 처리하므로,
+            # 마스크의 마지막 차원을 action_dim과 동일하게 확장해줍니다.
+            mask_expanded = mx.broadcast_to(mask_float, trajectories.shape)
+            loss = DistanceMetric.compute(trajectories, a_true_expanded, distance_type, mask=mask_expanded, delta=huber_delta)
+            
+            # NaN 체크 및 대체
+            loss = mx.where(mx.isnan(loss), mx.array(0.0), loss)
+            return loss
+        except Exception as e:
+            # Rollout 계산 실패 시 0 반환 (NaN 전파 방지)
+            logger.warning(f"Rollout loss 계산 실패: {str(e)}, 0으로 대체")
+            return mx.array(0.0)
 
     def _compute_rollout_loss_single(self, trajectories, a_true, m, distance_type, huber_delta):
         """단일 데이터에 대한 롤아웃 손실 계산 (벡터화)"""
@@ -859,52 +876,91 @@ class VRAE(nn.Module):
         kld_weight: float = 1.0,
     ) -> Tuple[mx.array, Dict[str, mx.array]]:
         """
-        VAE 손실함수 계산
+        VAE 손실함수 계산 (배치 처리)
         
         Args:
-            a: (T, action_dim) 실제 행동
-            s: (T, state_dim) 실제 상태
-            w: (T, context_dim) 컨텍스트
-            m: (T, 1) 마스크 (0=유효, 1=결측)
-            mu_*, sigma_*: 잠재변수 분포
-            a_recon: (T, action_dim) 재구성 행동
-            s_recon: (T, state_dim) 재구성 상태
+            a: (B, T, action_dim) 또는 (T, action_dim)
+            s: (B, T, state_dim) 또는 (T, state_dim)
+            w: (B, T, context_dim) 또는 (T, context_dim)
+            m: (B, T, 1) 또는 (T, 1) 마스크
+            mu_*, sigma_*: (B, latent_dim) 또는 (latent_dim)
+            a_recon: (B, T, action_dim) 또는 (T, action_dim)
+            s_recon: (B, T, state_dim) 또는 (T, state_dim)
             kld_weight: KL 손실 가중치
         
         Returns:
             (total_loss, metrics_dict)
         """
-        # 1. KL divergence (안정화된 계산)
-        eps = 1e-8
-        kl_a = -0.5 * mx.sum(1 + 2 * mx.log(sigma_a + eps) - mu_a ** 2 - sigma_a ** 2, axis=-1)
-        kl_b = -0.5 * mx.sum(1 + 2 * mx.log(sigma_b + eps) - mu_b ** 2 - sigma_b ** 2, axis=-1)
-        kl_c = -0.5 * mx.sum(1 + 2 * mx.log(sigma_c + eps) - mu_c ** 2 - sigma_c ** 2, axis=-1)
-        kl_loss = kl_a + kl_b + kl_c
+        # 배치 차원 처리
+        if mu_a.ndim == 1:
+            # 배치 없음 - 배치 차원 추가
+            a = mx.expand_dims(a, 0) if a.ndim == 2 else a
+            s = mx.expand_dims(s, 0) if s.ndim == 2 else s
+            w = mx.expand_dims(w, 0) if w.ndim == 2 else w
+            m = mx.expand_dims(m, 0) if m.ndim == 2 else m
+            mu_a = mx.expand_dims(mu_a, 0)
+            sigma_a = mx.expand_dims(sigma_a, 0)
+            mu_b = mx.expand_dims(mu_b, 0)
+            sigma_b = mx.expand_dims(sigma_b, 0)
+            mu_c = mx.expand_dims(mu_c, 0)
+            sigma_c = mx.expand_dims(sigma_c, 0)
+            a_recon = mx.expand_dims(a_recon, 0) if a_recon.ndim == 2 else a_recon
+            s_recon = mx.expand_dims(s_recon, 0) if s_recon.ndim == 2 else s_recon
+            squeeze_output = True
+        else:
+            squeeze_output = False
         
-        # 2. Reconstruction loss (마스킹 기반)
-        mask = (m < 0.5).astype(mx.float32)
-        recon_loss_a = DistanceMetric.compute(a_recon, a, self.distance_type, mask=mask, delta=self.huber_delta)
-        recon_loss_s = DistanceMetric.compute(s_recon, s, self.distance_type, mask=mask, delta=self.huber_delta)
+        B = mu_a.shape[0]
+        
+        # 1. KL divergence (안정화된 계산) - 배치별
+        # KL(N(μ,σ²) || N(0,1)) = 0.5 * sum(μ² + σ² - 2*log(σ) - 1)
+        eps = 1e-8
+        # (B, latent_dim) -> (B,)
+        kl_a = 0.5 * mx.sum(mu_a ** 2 + sigma_a ** 2 - 2 * mx.log(sigma_a + eps) - 1, axis=-1)
+        kl_b = 0.5 * mx.sum(mu_b ** 2 + sigma_b ** 2 - 2 * mx.log(sigma_b + eps) - 1, axis=-1)
+        kl_c = 0.5 * mx.sum(mu_c ** 2 + sigma_c ** 2 - 2 * mx.log(sigma_c + eps) - 1, axis=-1)
+        kl_loss = kl_a + kl_b + kl_c  # (B,)
+        
+        # 2. Reconstruction loss (마스킹 기반) - 배치별
+        mask = (m < 0.5).astype(mx.float32)  # (B, T, 1)
+        
+        # vmap을 사용하여 배치별로 계산
+        def compute_recon_loss_single(a_recon_i, a_i, s_recon_i, s_i, mask_i):
+            """단일 배치 샘플의 재구성 손실"""
+            loss_a = DistanceMetric.compute(a_recon_i, a_i, self.distance_type, mask=mask_i, delta=self.huber_delta)
+            loss_s = DistanceMetric.compute(s_recon_i, s_i, self.distance_type, mask=mask_i, delta=self.huber_delta)
+            return loss_a, loss_s
+        
+        # vmap 적용: (B, T, D), (B, T, D), (B, T, D), (B, T, 1) -> (B,), (B,)
+        recon_loss_a, recon_loss_s = mx.vmap(compute_recon_loss_single)(
+            a_recon, a, s_recon, s, mask
+        )  # (B,), (B,)
         
         # NaN 체크 및 안정화
         recon_loss_a = mx.where(mx.isnan(recon_loss_a), mx.array(0.0), recon_loss_a)
         recon_loss_s = mx.where(mx.isnan(recon_loss_s), mx.array(0.0), recon_loss_s)
-        recon_loss = recon_loss_a + recon_loss_s
+        recon_loss = recon_loss_a + recon_loss_s  # (B,)
         
         # 3. VAE 총 손실
-        # vae_loss는 (B,) 형태이므로 평균을 취함
-        vae_loss = mx.mean(recon_loss + kld_weight * kl_loss)
+        vae_loss_per_batch = recon_loss + kld_weight * kl_loss  # (B,)
+        vae_loss = mx.mean(vae_loss_per_batch)  # scalar
         
         # NaN 최종 체크
         vae_loss = mx.where(mx.isnan(vae_loss), mx.array(0.0), vae_loss)
         
-        # 메트릭
+        # 메트릭 (배치 평균)
         metrics = {
             "total_loss": vae_loss,
-            "recon_loss_action": recon_loss_a,
-            "recon_loss_state": recon_loss_s,
-            "kl_loss": kl_loss,
+            "recon_loss_action": mx.mean(recon_loss_a),
+            "recon_loss_state": mx.mean(recon_loss_s),
+            "kl_loss": mx.mean(kl_loss),
         }
+        
+        if squeeze_output:
+            # 배치가 없었을 때: 스칼라 반환
+            metrics['recon_loss_action'] = recon_loss_a[0] if recon_loss_a.ndim > 0 else recon_loss_a
+            metrics['recon_loss_state'] = recon_loss_s[0] if recon_loss_s.ndim > 0 else recon_loss_s
+            metrics['kl_loss'] = kl_loss[0] if kl_loss.ndim > 0 else kl_loss
         
         return vae_loss, metrics
 

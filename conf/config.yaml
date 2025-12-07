@@ -12,7 +12,7 @@ data:
 # Weights & Biases 설정
 wandb:
   project: "fitness-tracker-vrae"
-  name: "vrae-run-${now:%Y-%m-%d-%H-%M-%S}"
+  entity: ""  # 로그인 후 자동 설정
 
 # Hydra 설정
 hydra:

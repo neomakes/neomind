@@ -9,9 +9,9 @@ state_dim: 2         # 상태: heart_rate, mood
 context_dim: 1       # 컨텍스트: weather
 
 # 잠재 차원
-latent_action_dim: 16        # z_a: 행동 관련 잠재 변수
-latent_behavior_dim: 32      # z_b: 행동 패턴 변수
-latent_context_dim: 32       # z_c: 컨텍스트 관련 잠재 변수
+latent_state_dim: 16        # z_a: 초기 상태 변동성
+latent_policy_dim: 32      # z_b: 정책 스타일
+latent_transition_dim: 32       # z_c: 천이 스타일
 
 # 네트워크 아키텍처
 hidden_dim: 64        # GRU 인코더/디코더 숨겨진 크기
@@ -19,7 +19,7 @@ num_layers: 2         # GRU 레이어 수
 dropout_rate: 0.1     # Dropout 비율
 
 # 거리 메트릭
-distance_type: "rmse" # 옵션: rmse, mae, mape, huber
+distance_type: "huber" # 옵션: rmse, mae, mape, huber
 huber_delta: 1.0      # Huber loss의 delta 파라미터
 
 # 샘플링 파라미터

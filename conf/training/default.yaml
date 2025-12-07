@@ -28,4 +28,4 @@ w_transition: 0.5         # 천이 손실 가중치 (상태 변화)
 w_rollout: 0.3            # 롤아웃 손실 가중치 (생성 궤적)
 
 # WANDB 설정
-use_wandb: false          # W&B 로깅 활성화 여부
+use_wandb: true           # W&B 로깅 활성화 여부
