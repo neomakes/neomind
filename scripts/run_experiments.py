@@ -95,7 +95,7 @@ EXPERIMENTS = [
             "training.batch_size": 32,
             "training.learning_rate": 0.001,
             "training.epochs": 200,
-            "training.early_stopping_patience": 10,
+            "training.early_stopping_patience": 5,
             "training.use_wandb": True,
         }
     },
@@ -111,7 +111,7 @@ EXPERIMENTS = [
             "training.batch_size": 32,
             "training.learning_rate": 0.001,
             "training.epochs": 200,
-            "training.early_stopping_patience": 10,
+            "training.early_stopping_patience": 5,
             "training.use_wandb": True,
         }
     },
@@ -127,7 +127,7 @@ EXPERIMENTS = [
             "training.batch_size": 32,
             "training.learning_rate": 0.001,
             "training.epochs": 200,
-            "training.early_stopping_patience": 10,
+            "training.early_stopping_patience": 5,
             "training.use_wandb": True,
         }
     },
@@ -143,7 +143,7 @@ EXPERIMENTS = [
             "training.batch_size": 32,
             "training.learning_rate": 0.001,
             "training.epochs": 200,
-            "training.early_stopping_patience": 10,
+            "training.early_stopping_patience": 5,
             "training.use_wandb": True,
         }
     },
@@ -159,7 +159,7 @@ EXPERIMENTS = [
             "training.batch_size": 32,
             "training.learning_rate": 0.0005,
             "training.epochs": 200,
-            "training.early_stopping_patience": 10,
+            "training.early_stopping_patience": 5,
             "training.use_wandb": True,
         }
     },

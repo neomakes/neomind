@@ -21,7 +21,7 @@ kl_start_weight: 0.0      # 초기 KL 가중치
 kl_end_weight: 1.0        # 최종 KL 가중치
 
 # 조기 종료 설정 (Early Stopping)
-early_stopping_patience: 5       # 몇 epoch 동안 개선이 없으면 멈출지
+early_stopping_patience: 3      # 몇 epoch 동안 개선이 없으면 멈출지
 early_stopping_min_delta: 0.001  # 최소 개선 기준 (상대값, 예: 0.1%)
 
 # 손실 함수 가중치

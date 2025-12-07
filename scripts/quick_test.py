@@ -29,10 +29,10 @@ QUICK_EXPERIMENTS = [
             "model.latent_state_dim": 16,
             "model.latent_policy_dim": 32,
             "model.latent_transition_dim": 32,
-            "training.batch_size": 32,
+            "training.batch_size": 64,
             "training.learning_rate": 0.001,
             "training.epochs": 20,  # 빠른 테스트
-            "training.early_stopping_patience": 3,
+            "training.early_stopping_patience": 1,
             "training.use_wandb": False,  # W&B 미사용
         }
     },
