@@ -18,7 +18,7 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT_DIR="$PROJECT_DIR/scripts"
 LOG_DIR="$PROJECT_DIR/logs"
 
-echo "🔬 NeoMind VRAE - 순차 실험 시작 (Sleep 모드 방지)"
+echo "🔬 human-wm VRAE - 순차 실험 시작 (Sleep 모드 방지)"
 echo "════════════════════════════════════════════════════════════"
 echo "📁 프로젝트 디렉토리: $PROJECT_DIR"
 echo "⏰ 시작 시간: $(date '+%Y-%m-%d %H:%M:%S')"

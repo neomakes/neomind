@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="NeoMind Banner" width="100%" />
+  <img src="assets/banner.svg" alt="human-wm Banner" width="100%" />
 </p>
 
 <p align="center">
@@ -13,13 +13,21 @@
 </p>
 
 <p align="center">
-  <b>VRAE 기반 인간 행동 궤적 모델링</b><br>
-  희소한 건강 데이터에서 개인화된 활동 패턴을 학습하고, 다양한 행동 시나리오를 생성합니다.
+  <b>VRAE 기반 인간 행동 월드 모델</b><br>
+  희소한 건강 데이터로부터 인간의 의사결정 역학을 모델링하는 이론 레이어 — <a href="https://github.com/neomakes/neopip">NeoPIP</a>의 백본.
 </p>
 
 <p align="center">
   <a href="README.md">English</a>
 </p>
+
+---
+
+## human-wm이란?
+
+**human-wm**은 NeoMakes 리서치 스택의 **이론 레이어** 입니다 — [eigen-llm](https://github.com/neomakes/eigenllm) (LLM 분해)과 [neural-field](https://github.com/neomakes/neural-field) (연속 시간 신경장)와 같은 위상에 있습니다. eigen-llm이 대형 모델을 분해하고, neural-field가 진동 기반 연산을 탐구하는 동안, human-wm은 희소한 행동 데이터로부터 **인간이 불확실성 하에서 어떻게 의사결정하는지**를 모델링합니다.
+
+[NeoPIP](https://github.com/neomakes/neopip) (Personal Intelligence Platform)의 **ML 백본** 역할을 하며, 개인화된 웰니스 인텔리전스를 구동하는 생성 모델을 제공합니다.
 
 ---
 
@@ -32,7 +40,7 @@
 - [사용법](#사용법)
 - [설정](#설정)
 - [프로젝트 구조](#프로젝트-구조)
-- [관련 프로젝트](#관련-프로젝트)
+- [이론 레이어 생태계](#이론-레이어-생태계)
 - [현재 상태](#현재-상태)
 - [로드맵](#로드맵)
 - [기여하기](#기여하기)
@@ -42,7 +50,7 @@
 
 ## 배경 및 동기
 
-건강 및 웰니스 데이터는 본질적으로 **희소(sparse)** 합니다 — 사용자가 모든 식사, 운동, 기분 변화를 기록하지는 않기 때문입니다. 기존 모델은 이러한 불규칙성에 취약합니다. NeoMind는 **변분 순환 오토인코더(VRAE)** 를 통해 불완전한 데이터로부터 의사결정 역학을 학습합니다.
+건강 및 웰니스 데이터는 본질적으로 **희소(sparse)** 합니다 — 사용자가 모든 식사, 운동, 기분 변화를 기록하지는 않기 때문입니다. 기존 모델은 이러한 불규칙성에 취약합니다. human-wm은 **변분 순환 오토인코더(VRAE)** 를 통해 불완전한 데이터로부터 의사결정 역학을 학습합니다.
 
 핵심 통찰: 인간의 행동은 세 가지 잠재 요인으로 분해할 수 있습니다:
 - **초기 상태 다양성** (z_a) — 개인의 기본 특성
@@ -51,7 +59,7 @@
 
 이 세 요인의 조합을 샘플링하면 (5 x 5 x 5 = **125가지 다양한 궤적**), 동일한 초기 조건에서 그럴듯한 행동 미래의 스펙트럼을 생성할 수 있습니다.
 
-이 프로젝트는 [NeoPIP](https://github.com/neomakes/neopip)의 **ML 백본** 역할을 하며, 개인화된 웰니스 인텔리전스를 제공합니다. BT 기반 다중 로봇 제어 연구 — 불확실성 하의 에이전트 의사결정 모델링 — 에서 영감을 받았습니다.
+BT 기반 다중 로봇 제어 연구 — 불확실성 하의 에이전트 의사결정 모델링 — 에서 영감을 받았습니다.
 
 ---
 
@@ -128,8 +136,8 @@ L_total = w_vae * L_VAE + w_action * L_action + w_transition * L_transition + w_
 ### 설치 방법
 
 ```bash
-git clone https://github.com/neomakes/neomind.git
-cd neomind
+git clone https://github.com/neomakes/human-wm.git
+cd human-wm
 pip install mlx hydra-core wandb numpy tqdm pandas
 ```
 
@@ -159,7 +167,7 @@ python scripts/train.py \
 wandb login
 python scripts/train.py \
   training.use_wandb=true \
-  wandb.project="neomind-vrae" \
+  wandb.project="human-wm-vrae" \
   training.epochs=100
 ```
 
@@ -226,7 +234,7 @@ python scripts/train.py \
 ## 프로젝트 구조
 
 ```
-neomind/
+human-wm/
 ├── conf/                        # Hydra 설정
 │   ├── config.yaml              # 메인 설정 (데이터 경로, W&B)
 │   ├── model/
@@ -252,9 +260,19 @@ neomind/
 
 ---
 
-## 관련 프로젝트
+## 이론 레이어 생태계
 
-- **[NeoPIP](https://github.com/neomakes/neopip)** — Personal Intelligence Platform. NeoMind는 NeoPIP의 웰니스 인텔리전스 기능을 위한 ML 백본 역할을 합니다.
+human-wm은 NeoMakes 리서치 스택의 세 가지 **이론 레이어** 중 하나입니다:
+
+| 레이어 | 저장소 | 초점 |
+|:--|:--|:--|
+| **human-wm** | 이 저장소 | 인간 행동 월드 모델 — VRAE 기반 의사결정 역학 |
+| **eigen-llm** | [neomakes/eigenllm](https://github.com/neomakes/eigenllm) | LLM 분해 — 대형 범용 AI → 소형 특화 AI |
+| **neural-field** | [neomakes/neural-field](https://github.com/neomakes/neural-field) | 연속 시간 신경장 — Kuramoto + Free Energy |
+
+### 관련 응용 레이어
+
+- **[NeoPIP](https://github.com/neomakes/neopip)** — Personal Intelligence Platform. human-wm은 NeoPIP의 웰니스 인텔리전스 기능을 위한 ML 백본 역할을 합니다.
 - **[NeoSense](https://github.com/neomakes/neosense)** — 멀티모달 센서 로깅. 행동 모델링에 필요한 원시 물리 데이터 패턴을 제공합니다.
 
 ---

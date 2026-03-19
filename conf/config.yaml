@@ -11,7 +11,7 @@ data:
 
 # Weights & Biases 설정
 wandb:
-  project: "neomind-vrae"
+  project: "human-wm-vrae"
   entity: ""  # 로그인 후 자동 설정
 
 # Hydra 설정

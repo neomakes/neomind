@@ -519,7 +519,7 @@ def main(cfg: DictConfig):
     logger.addHandler(file_handler)
     
     logger.info("=" * 80)
-    logger.info("NeoMind VRAE Model Training")
+    logger.info("human-wm VRAE Model Training")
     logger.info("=" * 80)
     logger.info(f"Experiment: {generate_experiment_name(cfg)}")
     logger.info(f"\n{OmegaConf.to_yaml(cfg)}")

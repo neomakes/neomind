@@ -1,5 +1,5 @@
 # ============================================================================
-# Makefile: NeoMind VRAE 편의 명령어
+# Makefile: human-wm VRAE 편의 명령어
 # 
 # 사용법:
 #   make help              - 전체 명령어 확인
@@ -16,7 +16,7 @@
 # ============================================================================
 
 help:
-	@echo "🎯 NeoMind VRAE - Makefile 명령어"
+	@echo "🎯 human-wm VRAE - Makefile 명령어"
 	@echo ""
 	@echo "📚 주요 명령어:"
 	@echo "  make help              - 이 도움말 표시"

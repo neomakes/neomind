@@ -755,7 +755,7 @@ Cloud: AWS
 프로젝트의 세부 분석과 실험 결과는 다음 문서를 참고하세요:
 
 ```
-/neomakes/neomind/
+/neomakes/human-wm/
 ├── docs/
 │   ├── [04] ExperimentResults.md (5가지 모델 실험 결과 분석)
 │   ├── [04-1] QuickGuide.md (빠른 참고 가이드)

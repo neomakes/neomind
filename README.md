@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="NeoMind Banner" width="100%" />
+  <img src="assets/banner.svg" alt="human-wm Banner" width="100%" />
 </p>
 
 <p align="center">
@@ -13,13 +13,21 @@
 </p>
 
 <p align="center">
-  <b>VRAE-based human behavior trajectory modeling</b><br>
-  Learning personalized activity patterns from sparse health data and generating diverse behavioral scenarios.
+  <b>VRAE-based Human Behavior World Model</b><br>
+  A theory layer for modeling human decision dynamics from sparse health data — backbone for <a href="https://github.com/neomakes/neopip">NeoPIP</a>.
 </p>
 
 <p align="center">
   <a href="README.ko.md">한국어</a>
 </p>
+
+---
+
+## What is human-wm?
+
+**human-wm** is a **theory layer** in the NeoMakes research stack — alongside [eigen-llm](https://github.com/neomakes/eigenllm) (LLM decomposition) and [neural-field](https://github.com/neomakes/neural-field) (continuous-time neural fields). While eigen-llm decomposes large models and neural-field explores oscillatory computation, human-wm models **how humans make decisions** under uncertainty using sparse behavioral data.
+
+It serves as the **ML backbone** for [NeoPIP](https://github.com/neomakes/neopip) (Personal Intelligence Platform), providing the generative model that powers personalized wellness intelligence.
 
 ---
 
@@ -32,7 +40,7 @@
 - [Usage](#usage)
 - [Configuration](#configuration)
 - [Project Structure](#project-structure)
-- [Related Projects](#related-projects)
+- [Theory Layer Ecosystem](#theory-layer-ecosystem)
 - [Current Status](#current-status)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
@@ -42,7 +50,7 @@
 
 ## Background & Motivation
 
-Health and wellness data is inherently **sparse** — users don't log every meal, workout, or mood change. Traditional models struggle with this irregularity. NeoMind addresses this with a **Variational Recurrent Autoencoder (VRAE)** that learns decision dynamics from incomplete data.
+Health and wellness data is inherently **sparse** — users don't log every meal, workout, or mood change. Traditional models struggle with this irregularity. human-wm addresses this with a **Variational Recurrent Autoencoder (VRAE)** that learns decision dynamics from incomplete data.
 
 The core insight: human behavior can be decomposed into three latent factors:
 - **Initial state diversity** (z_a) — baseline individual characteristics
@@ -51,7 +59,7 @@ The core insight: human behavior can be decomposed into three latent factors:
 
 By sampling combinations of these factors (5 x 5 x 5 = **125 diverse trajectories**), the model generates a spectrum of plausible behavioral futures from the same starting conditions.
 
-This project serves as the **ML backbone** for [NeoPIP](https://github.com/neomakes/neopip), providing personalized wellness intelligence. The approach draws on heritage from BT-based multi-robot control research — modeling agent decision-making under uncertainty.
+This approach draws on heritage from BT-based multi-robot control research — modeling agent decision-making under uncertainty.
 
 ---
 
@@ -128,8 +136,8 @@ Where:
 ### Setup
 
 ```bash
-git clone https://github.com/neomakes/neomind.git
-cd neomind
+git clone https://github.com/neomakes/human-wm.git
+cd human-wm
 pip install mlx hydra-core wandb numpy tqdm pandas
 ```
 
@@ -159,7 +167,7 @@ python scripts/train.py \
 wandb login
 python scripts/train.py \
   training.use_wandb=true \
-  wandb.project="neomind-vrae" \
+  wandb.project="human-wm-vrae" \
   training.epochs=100
 ```
 
@@ -226,7 +234,7 @@ python scripts/train.py \
 ## Project Structure
 
 ```
-neomind/
+human-wm/
 ├── conf/                        # Hydra configuration
 │   ├── config.yaml              # Main config (data paths, W&B)
 │   ├── model/
@@ -252,9 +260,19 @@ neomind/
 
 ---
 
-## Related Projects
+## Theory Layer Ecosystem
 
-- **[NeoPIP](https://github.com/neomakes/neopip)** — Personal Intelligence Platform. NeoMind serves as the ML backbone for NeoPIP's wellness intelligence features.
+human-wm is one of three **theory layers** in the NeoMakes research stack:
+
+| Layer | Repository | Focus |
+|:--|:--|:--|
+| **human-wm** | this repo | Human behavior world model — VRAE-based decision dynamics |
+| **eigen-llm** | [neomakes/eigenllm](https://github.com/neomakes/eigenllm) | LLM decomposition — Large General AI → Small Special AI |
+| **neural-field** | [neomakes/neural-field](https://github.com/neomakes/neural-field) | Continuous-time neural fields — Kuramoto + Free Energy |
+
+### Related Application Layers
+
+- **[NeoPIP](https://github.com/neomakes/neopip)** — Personal Intelligence Platform. human-wm serves as the ML backbone for NeoPIP's wellness intelligence features.
 - **[NeoSense](https://github.com/neomakes/neosense)** — Multi-modal sensor logging. Provides raw physical data patterns that inform behavioral modeling.
 
 ---

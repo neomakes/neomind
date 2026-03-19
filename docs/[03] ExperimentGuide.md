@@ -130,7 +130,7 @@ tail -f logs/runs/2025-12-07/*/train.log
 ### 2. W&B 대시보드 (실시간)
 
 ```
-https://wandb.ai/your-username/neomind-vrae
+https://wandb.ai/your-username/human-wm-vrae
 ```
 
 - 각 실험이 별도 run으로 기록됨
@@ -384,7 +384,7 @@ caffeinate -i python scripts/train.py model.hidden_dim=768 training.epochs=100
 ### 즉시 실행 (권장)
 
 ```bash
-cd /Users/neo/neomakes/neomind
+cd /Users/neo/neomakes/human-wm
 make experiments-safe
 ```
 
@@ -395,7 +395,7 @@ make experiments-safe
 cat logs/experiments_results.json | python -m json.tool
 
 # W&B에서 상세 분석
-https://wandb.ai/your-username/neomind-vrae
+https://wandb.ai/your-username/human-wm-vrae
 ```
 
 ---
